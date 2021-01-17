@@ -15,3 +15,5 @@ build
 test/
 tfrecords/
 train/
+.idea/
+venv/
