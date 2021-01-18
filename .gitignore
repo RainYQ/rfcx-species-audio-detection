@@ -18,3 +18,4 @@ train/
 .idea/
 venv/
 temp/
+label_test/
