@@ -1,0 +1,23 @@
+<annotation>
+  <folder>VOC2007</folder>
+  <filename>c0786babe_0.png</filename>
+  <source>
+    <database>Kaggle Rainforest Connection Species Audio Detection Database</database>
+  </source>
+  <size>
+    <width>387</width>
+    <height>154</height>
+    <depth>3</depth>
+  </size>
+  <segmented>0</segmented>
+  <object>
+    <name>1</name>
+    <difficult>0</difficult>
+    <bndbox>
+      <xmin>68.96501250000001</xmin>
+      <ymin>25.40542096347278</ymin>
+      <xmax>99.71619375000002</xmax>
+      <ymax>37.78064780533224</ymax>
+    </bndbox>
+  </object>
+</annotation>
