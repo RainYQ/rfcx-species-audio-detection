@@ -1,0 +1,43 @@
+<annotation>
+  <folder>VOC2007</folder>
+  <filename>cb5ddad47_2.png</filename>
+  <source>
+    <database>Kaggle Rainforest Connection Species Audio Detection Database</database>
+  </source>
+  <size>
+    <width>387</width>
+    <height>154</height>
+    <depth>3</depth>
+  </size>
+  <segmented>0</segmented>
+  <object>
+    <name>17</name>
+    <difficult>0</difficult>
+    <bndbox>
+      <xmin>40.376193750000006</xmin>
+      <ymin>52.79468532384192</ymin>
+      <xmax>290.12341875</xmax>
+      <ymax>93.47538950901827</ymax>
+    </bndbox>
+  </object>
+  <object>
+    <name>17</name>
+    <difficult>0</difficult>
+    <bndbox>
+      <xmin>0.0</xmin>
+      <ymin>52.79468532384192</ymin>
+      <xmax>139.44819374999992</xmax>
+      <ymax>93.47538950901827</ymax>
+    </bndbox>
+  </object>
+  <object>
+    <name>17</name>
+    <difficult>0</difficult>
+    <bndbox>
+      <xmin>195.3851737499999</xmin>
+      <ymin>52.79468532384192</ymin>
+      <xmax>387.0001612499999</xmax>
+      <ymax>93.47538950901827</ymax>
+    </bndbox>
+  </object>
+</annotation>

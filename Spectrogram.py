@@ -120,9 +120,9 @@ def test():
 
 def label_verify():
     imglist = os.listdir("./train_tran")
+    label_data = pd.read_table("./label/label.txt", sep="\t")
     for img in tqdm(imglist):
         test_img = matplotlib.image.imread("./train_tran/" + img)
-        label_data = pd.read_table("./label/label.txt", sep="\t")
         data = np.array(label_data.loc[label_data["location"] == "./train_tran/" + img]
                         [["t_min", "t_max", "f_min", "f_max", "species_id", "songtype_id"]])
         plt.figure()
