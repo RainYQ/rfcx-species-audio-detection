@@ -5,6 +5,8 @@ from tqdm import tqdm
 from sklearn.model_selection import train_test_split
 from lxml.etree import Element, SubElement, ElementTree
 import json
+import shutil
+from shutil import copyfile
 
 SEED = 2021
 
@@ -28,8 +30,8 @@ Label = [[], [], []]
 
 for img in tqdm(imglist):
     cur_img = "./train_tran/" + img
-    data = label_data.loc[label_data["location"] == cur_img]
-    [["t_min", "t_max", "f_min", "f_max", "species_id", "songtype_id"]]
+    data = label_data.loc[label_data["location"] == cur_img][["t_min", "t_max", "f_min", "f_max", "species_id",
+                                                              "songtype_id"]]
     Label[0].append(img)
     # 将data直接打包，方便接下来生成xml格式的标记
     Label[1].append(data)
@@ -50,9 +52,28 @@ print("测试集数量: ", len(X_test))
 # print(len(y_train))
 # print(len(y_test))
 
-xml_location = "./VOC2007/VOCdevkit2007/VOC2007/Annotations/"
+# 创建coco所需要的文件夹
+if not os.path.exists('./coco/'):
+    os.makedirs('./coco/')
+if not os.path.exists('./coco/annotations/'):
+    os.makedirs('./coco/annotations/')
+if not os.path.exists('./coco/images/train2017/'):
+    os.makedirs('./coco/images/train2017/')
+if not os.path.exists('./coco/images/val2017/'):
+    os.makedirs('./coco/images/val2017/')
+
+# 创建VOC所需要的文件夹
+if not os.path.exists('./VOC2007/'):
+    os.makedirs('./VOC2007/')
+if not os.path.exists('./VOC2007/JPEGImages/'):
+    os.makedirs('./VOC2007/JPEGImages/')
+if not os.path.exists('./VOC2007/Annotations'):
+    os.makedirs('./VOC2007/Annotations')
+if not os.path.exists('./VOC2007/ImageSets'):
+    os.makedirs('./VOC2007/ImageSets')
+
+xml_location = "./VOC2007/Annotations/"
 # 制作VOC格式的label
-# 制作COCO格式的json
 for i in range(len(Label[0])):
     node_root = Element('annotation')
     node_folder = SubElement(node_root, 'folder')
@@ -77,7 +98,8 @@ for i in range(len(Label[0])):
         # xml file generator
         node_object = SubElement(node_root, 'object')
         node_name = SubElement(node_object, 'name')
-        node_name.text = str(int(np.array(Label[1][i]["species_id"])[j]))
+        # 0默认为背景
+        node_name.text = str(int(np.array(Label[1][i]["species_id"])[j]) + 1)
         node_difficult = SubElement(node_object, 'difficult')
         node_difficult.text = '0'
         node_bndbox = SubElement(node_object, 'bndbox')
@@ -99,27 +121,168 @@ for i in range(len(Label[0])):
 print("VOC Annotations xml files generate successfully!")
 # 制作VOC格式的train.txt val.txt trainval.txt test.txt
 # VOC格式要求第一列为文件名（去除后缀名）, 第二列为±1, 1表示正样本, -1表示负样本
-file = open('./VOC2007/VOCdevkit2007/VOC2007/ImageSets/Main/trainval.txt', 'w')
+file = open('./VOC2007/ImageSets/Main/trainval.txt', 'w')
 for i in range(len(X_train_validate)):
     (filename, extension) = os.path.splitext(X_train_validate[i])
     file.write(filename + "\t" + "1" + "\n")
 file.close()
-print("trainval.txt generate successfully!")
-file = open('./VOC2007/VOCdevkit2007/VOC2007/ImageSets/Main/train.txt', 'w')
+print("VOC trainval.txt generate successfully!")
+file = open('./VOC2007/ImageSets/Main/train.txt', 'w')
 for i in range(len(X_train)):
     (filename, extension) = os.path.splitext(X_train[i])
     file.write(filename + "\t" + "1" + "\n")
 file.close()
-print("train.txt generate successfully!")
-file = open('./VOC2007/VOCdevkit2007/VOC2007/ImageSets/Main/val.txt', 'w')
+print("VOC train.txt generate successfully!")
+file = open('./VOC2007/ImageSets/Main/val.txt', 'w')
 for i in range(len(X_validate)):
     (filename, extension) = os.path.splitext(X_validate[i])
     file.write(filename + "\t" + "1" + "\n")
 file.close()
-print("val.txt generate successfully!")
-file = open('./VOC2007/VOCdevkit2007/VOC2007/ImageSets/Main/test.txt', 'w')
+print("VOC val.txt generate successfully!")
+file = open('./VOC2007/ImageSets/Main/test.txt', 'w')
 for i in range(len(X_test)):
     (filename, extension) = os.path.splitext(X_test[i])
     file.write(filename + "\t" + "1" + "\n")
 file.close()
-print("test.txt generate successfully!")
+print("VOC test.txt generate successfully!")
+
+img_dataset = "./train_img/"
+# 每次把图片文件夹清空
+if len(os.listdir("./coco/images/train2017/")):
+    shutil.rmtree("./coco/images/train2017/")
+    os.mkdir("./coco/images/train2017/")
+if len(os.listdir("./coco/images/val2017/")):
+    shutil.rmtree("./coco/images/val2017/")
+    os.mkdir("./coco/images/val2017/")
+if len(os.listdir("./coco/images/test2017/")):
+    shutil.rmtree("./coco/images/test2017/")
+    os.mkdir("./coco/images/test2017/")
+
+# 制作COCO格式的json
+coco_dataset = {'categories': [], 'images': [], 'annotations': []}
+imgcount = 0
+bdboxcount = 0
+for i in range(len(X_train)):
+    copyfile(img_dataset + X_train[i], "./coco/images/train2017/" + X_train[i])
+    coco_dataset['images'].append({'file_name': X_train[i],
+                                   'id': imgcount,
+                                   'width': 387,
+                                   'height': 154})
+    for j in range(y_train[i].shape[0]):
+        coco_dataset['annotations'].append({
+            'area': (np.array(y_train[i]["t_max"])[j] - np.array(y_train[i]["t_min"])[j]) * (
+                    np.array(y_train[i]["f_max"])[j] - np.array(y_train[i]["f_min"])[j]),
+            # x1, y1为左上角顶点
+            # bbox: x1, y1, width, height
+            'bbox': [np.array(y_train[i]["t_min"])[j], 154 - np.array(y_train[i]["f_min"])[j],
+                     np.array(y_train[i]["t_max"])[j] - np.array(y_train[i]["t_min"])[j],
+                     np.array(y_train[i]["f_max"])[j] - np.array(y_train[i]["f_min"])[j]],
+            # 0默认为背景
+            'category_id': int(np.array(y_train[i]["species_id"])[j]) + 1,
+            # 为每个object编制唯一id
+            'id': bdboxcount,
+            'image_id': imgcount,
+            'iscrowd': 0,
+            # [x1, y1, x2, y1, x2, y2, x1, y2]
+            'segmentation': [[np.array(y_train[i]["t_min"])[j],
+                              154 - np.array(y_train[i]["f_min"])[j],
+                              np.array(y_train[i]["t_max"])[j],
+                              154 - np.array(y_train[i]["f_min"])[j],
+                              np.array(y_train[i]["t_max"])[j],
+                              154 - np.array(y_train[i]["f_max"])[j],
+                              np.array(y_train[i]["t_min"])[j],
+                              154 - np.array(y_train[i]["f_max"])[j]]]
+        })
+        bdboxcount += 1
+    imgcount += 1
+for i in range(25):
+    coco_dataset['categories'].append({'id': i,
+                                       'name': i,
+                                       'supercategory': i})
+filename = "./coco/annotations/instances_train2017.json"
+with open(filename, 'w') as file_obj:
+    json.dump(coco_dataset, file_obj, indent=1)
+
+coco_dataset = {'categories': [], 'images': [], 'annotations': []}
+for i in range(len(X_validate)):
+    copyfile(img_dataset + X_validate[i], "./coco/images/val2017/" + X_validate[i])
+    coco_dataset['images'].append({'file_name': X_validate[i],
+                                   'id': imgcount,
+                                   'width': 387,
+                                   'height': 154})
+    for j in range(y_validate[i].shape[0]):
+        coco_dataset['annotations'].append({
+            'area': (np.array(y_validate[i]["t_max"])[j] - np.array(y_validate[i]["t_min"])[j]) * (
+                    np.array(y_validate[i]["f_max"])[j] - np.array(y_validate[i]["f_min"])[j]),
+            # x1, y1为左上角顶点
+            # bbox: x1, y1, width, height
+            'bbox': [np.array(y_validate[i]["t_min"])[j], 154 - np.array(y_validate[i]["f_min"])[j],
+                     np.array(y_validate[i]["t_max"])[j] - np.array(y_validate[i]["t_min"])[j],
+                     np.array(y_validate[i]["f_max"])[j] - np.array(y_validate[i]["f_min"])[j]],
+            # 0默认为背景
+            'category_id': int(np.array(y_validate[i]["species_id"])[j]) + 1,
+            # 为每个object编制唯一id
+            'id': bdboxcount,
+            'image_id': imgcount,
+            'iscrowd': 0,
+            # [x1, y1, x2, y1, x2, y2, x1, y2]
+            'segmentation': [[np.array(y_validate[i]["t_min"])[j],
+                              154 - np.array(y_validate[i]["f_min"])[j],
+                              np.array(y_validate[i]["t_max"])[j],
+                              154 - np.array(y_validate[i]["f_min"])[j],
+                              np.array(y_validate[i]["t_max"])[j],
+                              154 - np.array(y_validate[i]["f_max"])[j],
+                              np.array(y_validate[i]["t_min"])[j],
+                              154 - np.array(y_validate[i]["f_max"])[j]]]
+        })
+        bdboxcount += 1
+    imgcount += 1
+for i in range(25):
+    coco_dataset['categories'].append({'id': i,
+                                       'name': i,
+                                       'supercategory': i})
+filename = "./coco/annotations/instances_val2017.json"
+with open(filename, 'w') as file_obj:
+    json.dump(coco_dataset, file_obj, indent=1)
+
+coco_dataset = {'categories': [], 'images': [], 'annotations': []}
+for i in range(len(X_test)):
+    copyfile(img_dataset + X_test[i], "./coco/images/test2017/" + X_test[i])
+    coco_dataset['images'].append({'file_name': X_test[i],
+                                   'id': imgcount,
+                                   'width': 387,
+                                   'height': 154})
+    for j in range(y_test[i].shape[0]):
+        coco_dataset['annotations'].append({
+            'area': (np.array(y_test[i]["t_max"])[j] - np.array(y_test[i]["t_min"])[j]) * (
+                    np.array(y_test[i]["f_max"])[j] - np.array(y_test[i]["f_min"])[j]),
+            # x1, y1为左上角顶点
+            # bbox: x1, y1, width, height
+            'bbox': [np.array(y_test[i]["t_min"])[j], 154 - np.array(y_test[i]["f_min"])[j],
+                     np.array(y_test[i]["t_max"])[j] - np.array(y_test[i]["t_min"])[j],
+                     np.array(y_test[i]["f_max"])[j] - np.array(y_test[i]["f_min"])[j]],
+            # 0默认为背景
+            'category_id': int(np.array(y_test[i]["species_id"])[j]) + 1,
+            # 为每个object编制唯一id
+            'id': bdboxcount,
+            'image_id': imgcount,
+            'iscrowd': 0,
+            # [x1, y1, x2, y1, x2, y2, x1, y2]
+            'segmentation': [[np.array(y_test[i]["t_min"])[j],
+                              154 - np.array(y_test[i]["f_min"])[j],
+                              np.array(y_test[i]["t_max"])[j],
+                              154 - np.array(y_test[i]["f_min"])[j],
+                              np.array(y_test[i]["t_max"])[j],
+                              154 - np.array(y_test[i]["f_max"])[j],
+                              np.array(y_test[i]["t_min"])[j],
+                              154 - np.array(y_test[i]["f_max"])[j]]]
+        })
+        bdboxcount += 1
+    imgcount += 1
+for i in range(25):
+    coco_dataset['categories'].append({'id': i,
+                                       'name': i,
+                                       'supercategory': i})
+filename = "./coco/annotations/instances_test2017.json"
+with open(filename, 'w') as file_obj:
+    json.dump(coco_dataset, file_obj, indent=1)
