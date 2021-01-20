@@ -20,6 +20,7 @@ import logging
 import os
 from collections import OrderedDict
 import torch
+import cv2
 
 import detectron2.utils.comm as comm
 from detectron2.checkpoint import DetectionCheckpointer
@@ -40,6 +41,7 @@ from detectron2.evaluation import (
 from detectron2.modeling import GeneralizedRCNNWithTTA
 from detectron2.data import DatasetCatalog, MetadataCatalog
 from detectron2.data.datasets.coco import load_coco_json
+from detectron2.utils.visualizer import Visualizer
 
 # 0为背景
 CLASS_NAMES = ["0", "1", "2", "3", "4", "5", "6", "7", "8",
@@ -62,6 +64,29 @@ PREDEFINED_SPLITS_DATASET = {
 }
 
 
+# 注册数据集
+def register_dataset():
+    """
+    purpose: register all splits of dataset with PREDEFINED_SPLITS_DATASET
+    """
+    for key, (image_root, json_file) in PREDEFINED_SPLITS_DATASET.items():
+        register_dataset_instances(name=key,
+                                   json_file=json_file,
+                                   image_root=image_root)
+
+
+# 注册数据集实例，加载数据集中的对象实例
+def register_dataset_instances(name, json_file, image_root):
+    """
+    purpose: register dataset to DatasetCatalog,
+             register metadata to MetadataCatalog and set attribute
+    """
+    DatasetCatalog.register(name, lambda: load_coco_json(json_file, image_root, name))
+    MetadataCatalog.get(name).set(json_file=json_file,
+                                  image_root=image_root,
+                                  evaluator_type="coco")
+
+
 # 注册数据集和元数据
 def plain_register_dataset():
     # 训练集
@@ -77,6 +102,18 @@ def plain_register_dataset():
                                              evaluator_type='coco',  # 指定评估方式
                                              json_file=VAL_JSON,
                                              image_root=VAL_PATH)
+
+
+# 查看数据集标注，可视化检查数据集标注是否正确，
+def checkout_dataset_annotation(name):
+    dataset_dicts = load_coco_json(VAL_JSON, VAL_PATH)
+    print("验证集数量: ")
+    print(len(dataset_dicts))
+    for i, data in enumerate(dataset_dicts, 0):
+        img = cv2.imread(data["file_name"])
+        visualizer = Visualizer(img[:, :, ::-1], metadata=MetadataCatalog.get(name), scale=1.5)
+        vis = visualizer.draw_dataset_dict(data)
+        cv2.imwrite('./coco_dataset_verify/' + str(i) + '.jpg', vis.get_image()[:, :, ::-1])
 
 
 class Trainer(DefaultTrainer):
@@ -199,7 +236,7 @@ def setup(args):
     Create configs and perform basic setups.
     """
     cfg = get_cfg()
-    args.config_file = "./faster rcnn/configs/COCO-Detection/retinanet_R_50_FPN_3x.yaml"
+    args.config_file = "./faster rcnn/configs/COCO-Detection/fast_rcnn_R_50_FPN_1x.yaml"
     cfg.merge_from_file(args.config_file)  # 从config file 覆盖配置
     cfg.merge_from_list(args.opts)  # 从CLI参数 覆盖配置
 
@@ -217,7 +254,7 @@ def setup(args):
     # range 让图像的短边从 512-768随机选择
     # choice ： 把输入图像转化为指定的，有限的几种图片大小进行训练，即短边只能为 512或者768
     cfg.INPUT.MIN_SIZE_TRAIN_SAMPLING = 'range'
-    cfg.MODEL.RETINANET.NUM_CLASSES = 25  # 类别数+1（因为有background，也就是你的 cate id 从 1 开始，如果您的数据集Json下标从 0 开始，这个改为您对应的类别就行，不用再加背景类！！！！！）
+    cfg.MODEL.RETINANET.NUM_CLASSES = 25
     cfg.MODEL.WEIGHTS = "detectron2://ImageNetPretrained/MSRA/R-50.pkl"  # 预训练模型权重
     cfg.SOLVER.IMS_PER_BATCH = 4
     # 根据训练数据总数目以及batch_size，计算出每个epoch需要的迭代次数
@@ -258,15 +295,16 @@ def setup(args):
 
 
 if __name__ == "__main__":
-    plain_register_dataset();
-    args = default_argument_parser().parse_args()
-    cfg = setup(args)
-    print("Command Line Args:", args)
-    launch(
-        main,
-        args.num_gpus,
-        num_machines=args.num_machines,
-        machine_rank=args.machine_rank,
-        dist_url=args.dist_url,
-        args=(args,),
-    )
+    plain_register_dataset()
+    checkout_dataset_annotation("coco_data_val")
+    # args = default_argument_parser().parse_args()
+    # cfg = setup(args)
+    # print("Command Line Args:", args)
+    # launch(
+    #     main,
+    #     args.num_gpus,
+    #     num_machines=args.num_machines,
+    #     machine_rank=args.machine_rank,
+    #     dist_url=args.dist_url,
+    #     args=(args,),
+    # )

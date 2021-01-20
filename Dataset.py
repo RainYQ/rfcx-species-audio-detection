@@ -174,7 +174,7 @@ for i in range(len(X_train)):
                     np.array(y_train[i]["f_max"])[j] - np.array(y_train[i]["f_min"])[j]),
             # x1, y1为左上角顶点
             # bbox: x1, y1, width, height
-            'bbox': [np.array(y_train[i]["t_min"])[j], 154 - np.array(y_train[i]["f_min"])[j],
+            'bbox': [np.array(y_train[i]["t_min"])[j], 154 - np.array(y_train[i]["f_max"])[j],
                      np.array(y_train[i]["t_max"])[j] - np.array(y_train[i]["t_min"])[j],
                      np.array(y_train[i]["f_max"])[j] - np.array(y_train[i]["f_min"])[j]],
             # 0默认为背景
@@ -216,7 +216,7 @@ for i in range(len(X_validate)):
                     np.array(y_validate[i]["f_max"])[j] - np.array(y_validate[i]["f_min"])[j]),
             # x1, y1为左上角顶点
             # bbox: x1, y1, width, height
-            'bbox': [np.array(y_validate[i]["t_min"])[j], 154 - np.array(y_validate[i]["f_min"])[j],
+            'bbox': [np.array(y_validate[i]["t_min"])[j], 154 - np.array(y_validate[i]["f_max"])[j],
                      np.array(y_validate[i]["t_max"])[j] - np.array(y_validate[i]["t_min"])[j],
                      np.array(y_validate[i]["f_max"])[j] - np.array(y_validate[i]["f_min"])[j]],
             # 0默认为背景
@@ -258,7 +258,7 @@ for i in range(len(X_test)):
                     np.array(y_test[i]["f_max"])[j] - np.array(y_test[i]["f_min"])[j]),
             # x1, y1为左上角顶点
             # bbox: x1, y1, width, height
-            'bbox': [np.array(y_test[i]["t_min"])[j], 154 - np.array(y_test[i]["f_min"])[j],
+            'bbox': [np.array(y_test[i]["t_min"])[j], 154 - np.array(y_test[i]["f_max"])[j],
                      np.array(y_test[i]["t_max"])[j] - np.array(y_test[i]["t_min"])[j],
                      np.array(y_test[i]["f_max"])[j] - np.array(y_test[i]["f_min"])[j]],
             # 0默认为背景
