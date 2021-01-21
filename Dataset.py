@@ -74,6 +74,7 @@ if not os.path.exists('./VOC2007/ImageSets'):
 
 xml_location = "./VOC2007/Annotations/"
 # 制作VOC格式的label
+# warning: VOC格式中的种类从0开始
 for i in range(len(Label[0])):
     node_root = Element('annotation')
     node_folder = SubElement(node_root, 'folder')
@@ -195,6 +196,7 @@ for i in range(len(X_train)):
         })
         bdboxcount += 1
     imgcount += 1
+print("COCO dataset image png files copy successfully!")
 for i in range(25):
     coco_dataset['categories'].append({'id': i,
                                        'name': i,
@@ -202,6 +204,7 @@ for i in range(25):
 filename = "./coco/annotations/instances_train2017.json"
 with open(filename, 'w') as file_obj:
     json.dump(coco_dataset, file_obj, indent=1)
+print("COCO instances_train2017.json generate successfully!")
 
 coco_dataset = {'categories': [], 'images': [], 'annotations': []}
 for i in range(len(X_validate)):
@@ -244,6 +247,7 @@ for i in range(25):
 filename = "./coco/annotations/instances_val2017.json"
 with open(filename, 'w') as file_obj:
     json.dump(coco_dataset, file_obj, indent=1)
+print("COCO instances_val2017.json generate successfully!")
 
 coco_dataset = {'categories': [], 'images': [], 'annotations': []}
 for i in range(len(X_test)):
@@ -286,3 +290,40 @@ for i in range(25):
 filename = "./coco/annotations/instances_test2017.json"
 with open(filename, 'w') as file_obj:
     json.dump(coco_dataset, file_obj, indent=1)
+print("COCO instances_test2017.json generate successfully!")
+
+# create darknet dataset
+darknet_dataset_location = "./darknet/data/kaggle"
+file = open("./darknet/data/trainval.txt", 'w')
+for i in range(len(X_train_validate)):
+    file.write("./data/kaggle/" + X_train_validate[i] + "\n")
+file.close()
+file = open("./darknet/data/train.txt", 'w')
+for i in range(len(X_train)):
+    file.write("data/kaggle/" + X_train[i] + "\n")
+file.close()
+print("Darknet train.txt generate successfully!")
+file = open("./darknet/data/val.txt", 'w')
+for i in range(len(X_validate)):
+    file.write("data/kaggle/" + X_validate[i] + "\n")
+file.close()
+print("Darknet val.txt generate successfully!")
+file = open("./darknet/data/test.txt", 'w')
+for i in range(len(X_test)):
+    file.write("data/kaggle/" + X_test[i] + "\n")
+file.close()
+print("Darknet test.txt generate successfully!")
+# darknet中的种类从0开始
+for i in range(len(Label[0])):
+    (filename, extension) = os.path.splitext(Label[0][i])
+    file = open("./darknet/data/kaggle/" + filename + ".txt", 'w')
+    for j in range(Label[1][i].shape[0]):
+        species_id = int(np.array(Label[1][i]["species_id"])[j])
+        width = (np.array(Label[1][i]["t_max"])[j] - np.array(Label[1][i]["t_min"])[j]) / 387
+        height = (np.array(Label[1][i]["f_max"])[j] - np.array(Label[1][i]["f_min"])[j]) / 154
+        center_x = ((np.array(Label[1][i]["t_max"])[j] + np.array(Label[1][i]["t_min"])[j]) / 2) / 387
+        center_y = ((308 - np.array(Label[1][i]["f_max"])[j] - np.array(Label[1][i]["f_min"])[j]) / 2) / 154
+        file.write(str(species_id) + " " + str(center_x) + " " + str(center_y) +
+                   " " + str(width) + " " + str(height))
+    file.close()
+print("Darknet label txt files generate successfully!")
