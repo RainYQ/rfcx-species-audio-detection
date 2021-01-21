@@ -63,6 +63,20 @@
     cd darknet
     powershell -ExecutionPolicy Bypass -File .\build.ps1
     ```
+  - 如果显示 GPU not used
+    ```console
+    cd [darknet项目文件夹]
+    删除build/*
+    打开cmake重新generate
+    打开build下的sln解决方案
+    设置为release模式，生成解决方案
+    将./Release/*文件复制到[darknet项目文件夹]
+    ```
+    训练: 
+    ```console
+    ./darknet.exe detector train data/kaggle.data cfg/yolov4-kaggle.cfg yolov4.conv.137 -map -json_port 8070 -mjpeg_port 8090
+    ```
+
 
 
 # 问题
