@@ -19,3 +19,4 @@ train/
 venv/
 temp/
 label_test/
+output/

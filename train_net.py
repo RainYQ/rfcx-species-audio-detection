@@ -195,8 +195,50 @@ def setup(args):
     Create configs and perform basic setups.
     """
     cfg = get_cfg()
-    cfg.merge_from_file(args.config_file)
-    cfg.merge_from_list(args.opts)
+    args.config_file = "./faster rcnn/configs/COCO-Detection/retinanet_R_50_FPN_3x.yaml"
+    cfg.merge_from_file(args.config_file)  # 从config file 覆盖配置
+    cfg.merge_from_list(args.opts)  # 从CLI参数 覆盖配置
+    # 更改配置参数
+    cfg.DATASETS.TRAIN = ("coco_data_train",)  # 训练数据集名称
+    cfg.DATASETS.TEST = ("coco_data_val",)
+    cfg.DATALOADER.NUM_WORKERS = 4
+    cfg.INPUT.CROP.ENABLED = True
+    cfg.INPUT.MAX_SIZE_TRAIN = 640  # 训练图片输入的最大尺寸
+    cfg.INPUT.MAX_SIZE_TEST = 640  # 测试数据输入的最大尺寸
+    cfg.INPUT.MIN_SIZE_TRAIN = 160  # 训练图片输入的最小尺寸，可以设定为多尺度训练
+    cfg.INPUT.MIN_SIZE_TEST = 160
+    # cfg.INPUT.MIN_SIZE_TRAIN_SAMPLING，其存在两种配置，分别为 choice 与 range ：
+    # range 让图像的短边从 512-768随机选择
+    # choice ： 把输入图像转化为指定的，有限的几种图片大小进行训练，即短边只能为 512或者768
+    cfg.INPUT.MIN_SIZE_TRAIN_SAMPLING = 'range'
+    cfg.MODEL.RETINANET.NUM_CLASSES = 25
+    cfg.MODEL.WEIGHTS = "detectron2://ImageNetPretrained/MSRA/R-50.pkl"  # 预训练模型权重
+    cfg.SOLVER.IMS_PER_BATCH = 4
+    # 根据训练数据总数目以及batch_size，计算出每个epoch需要的迭代次数
+    # 729: 训练数据的总数目
+    ITERS_IN_ONE_EPOCH = int(729 / cfg.SOLVER.IMS_PER_BATCH)
+    # 指定最大迭代次数
+    cfg.SOLVER.MAX_ITER = (ITERS_IN_ONE_EPOCH * 1000) - 1  # 1000 epochs，
+    # 初始学习率
+    cfg.SOLVER.BASE_LR = 0.0015
+    # 优化器动能
+    cfg.SOLVER.MOMENTUM = 0.9
+    # 权重衰减
+    cfg.SOLVER.WEIGHT_DECAY = 0.00001
+    cfg.SOLVER.WEIGHT_DECAY_NORM = 0.0
+    # 学习率衰减倍数
+    cfg.SOLVER.GAMMA = 0.2
+    # 迭代到指定次数，学习率进行衰减
+    cfg.SOLVER.STEPS = (40000, 80000, )
+    # 在训练之前，会做一个热身运动，学习率慢慢增加初始学习率
+    cfg.SOLVER.WARMUP_FACTOR = 1.0 / 500
+    # 热身迭代次数
+    cfg.SOLVER.WARMUP_ITERS = 500
+    cfg.SOLVER.WARMUP_METHOD = "linear"
+    # 保存模型文件的命名数据减1
+    cfg.SOLVER.CHECKPOINT_PERIOD = ITERS_IN_ONE_EPOCH - 1
+    # 迭代到指定次数，进行一次评估
+    cfg.TEST.EVAL_PERIOD = ITERS_IN_ONE_EPOCH
     cfg.freeze()
     default_setup(cfg, args)
     return cfg
@@ -231,80 +273,18 @@ def main(args):
     return trainer.train()
 
 
-def setup(args):
-    """
-    Create configs and perform basic setups.
-    """
-    cfg = get_cfg()
-    args.config_file = "./faster rcnn/configs/COCO-Detection/fast_rcnn_R_50_FPN_1x.yaml"
-    cfg.merge_from_file(args.config_file)  # 从config file 覆盖配置
-    cfg.merge_from_list(args.opts)  # 从CLI参数 覆盖配置
-
-    # 更改配置参数
-    cfg.DATASETS.TRAIN = ("coco_data_train",)  # 训练数据集名称
-    cfg.DATASETS.TEST = ("coco_data_val",)
-    cfg.DATALOADER.NUM_WORKERS = 4
-
-    cfg.INPUT.CROP.ENABLED = True
-    cfg.INPUT.MAX_SIZE_TRAIN = 640  # 训练图片输入的最大尺寸
-    cfg.INPUT.MAX_SIZE_TEST = 640  # 测试数据输入的最大尺寸
-    cfg.INPUT.MIN_SIZE_TRAIN = 320  # 训练图片输入的最小尺寸，可以设定为多尺度训练
-    cfg.INPUT.MIN_SIZE_TEST = 320
-    # cfg.INPUT.MIN_SIZE_TRAIN_SAMPLING，其存在两种配置，分别为 choice 与 range ：
-    # range 让图像的短边从 512-768随机选择
-    # choice ： 把输入图像转化为指定的，有限的几种图片大小进行训练，即短边只能为 512或者768
-    cfg.INPUT.MIN_SIZE_TRAIN_SAMPLING = 'range'
-    cfg.MODEL.RETINANET.NUM_CLASSES = 25
-    cfg.MODEL.WEIGHTS = "detectron2://ImageNetPretrained/MSRA/R-50.pkl"  # 预训练模型权重
-    cfg.SOLVER.IMS_PER_BATCH = 4
-    # 根据训练数据总数目以及batch_size，计算出每个epoch需要的迭代次数
-    # 729: 训练数据的总数目
-    ITERS_IN_ONE_EPOCH = int(729 / cfg.SOLVER.IMS_PER_BATCH)
-
-    # 指定最大迭代次数
-    cfg.SOLVER.MAX_ITER = (ITERS_IN_ONE_EPOCH * 100) - 1  # 100 epochs，
-    # 初始学习率
-    cfg.SOLVER.BASE_LR = 0.002
-    # 优化器动能
-    cfg.SOLVER.MOMENTUM = 0.9
-    # 权重衰减
-    cfg.SOLVER.WEIGHT_DECAY = 0.0001
-    cfg.SOLVER.WEIGHT_DECAY_NORM = 0.0
-    # 学习率衰减倍数
-    cfg.SOLVER.GAMMA = 0.1
-    # 迭代到指定次数，学习率进行衰减
-    cfg.SOLVER.STEPS = (7000,)
-    # 在训练之前，会做一个热身运动，学习率慢慢增加初始学习率
-    cfg.SOLVER.WARMUP_FACTOR = 1.0 / 1000
-    # 热身迭代次数
-    cfg.SOLVER.WARMUP_ITERS = 1000
-
-    cfg.SOLVER.WARMUP_METHOD = "linear"
-    # 保存模型文件的命名数据减1
-    cfg.SOLVER.CHECKPOINT_PERIOD = ITERS_IN_ONE_EPOCH - 1
-
-    # 迭代到指定次数，进行一次评估
-    cfg.TEST.EVAL_PERIOD = ITERS_IN_ONE_EPOCH
-    # cfg.TEST.EVAL_PERIOD = 100
-
-    # cfg.merge_from_file(args.config_file)
-    # cfg.merge_from_list(args.opts)
-    cfg.freeze()
-    default_setup(cfg, args)
-    return cfg
-
-
 if __name__ == "__main__":
     plain_register_dataset()
-    checkout_dataset_annotation("coco_data_val")
-    # args = default_argument_parser().parse_args()
-    # cfg = setup(args)
-    # print("Command Line Args:", args)
-    # launch(
-    #     main,
-    #     args.num_gpus,
-    #     num_machines=args.num_machines,
-    #     machine_rank=args.machine_rank,
-    #     dist_url=args.dist_url,
-    #     args=(args,),
-    # )
+    # 测试标注
+    # checkout_dataset_annotation("coco_data_val")
+    args = default_argument_parser().parse_args()
+    cfg = setup(args)
+    print("Command Line Args:", args)
+    launch(
+        main,
+        args.num_gpus,
+        num_machines=args.num_machines,
+        machine_rank=args.machine_rank,
+        dist_url=args.dist_url,
+        args=(args,),
+    )
