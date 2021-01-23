@@ -20,3 +20,5 @@ venv/
 temp/
 label_test/
 output/
+data/
+model/
