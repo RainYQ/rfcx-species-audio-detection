@@ -72,7 +72,7 @@
     设置为release模式，生成解决方案
     将./Release/*文件复制到[darknet项目文件夹]
     ```
-    训练: 
+  - 训练: 
     ```console
     ./darknet.exe detector train data/kaggle.data cfg/yolov4-kaggle.cfg yolov4.conv.137 -map -json_port 8070 -mjpeg_port 8090
     ```
