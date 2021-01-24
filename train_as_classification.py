@@ -72,19 +72,9 @@ weights = class_weight.compute_class_weight('balanced', np.unique(np.array(train
                                             np.array(train_data_tp["species_id"]))
 class_weight_dict = dict(enumerate(weights))
 
-resnet = keras.applications.ResNet50V2(weights="imagenet", include_top=False, input_shape=(X_train_validate[0].shape[0],
+resnet = keras.applications.EfficientNetB4(weights="imagenet", include_top=False, input_shape=(X_train_validate[0].shape[0],
                                                                                            X_train_validate[0].shape[1],
                                                                                            3), classes=24)
-for layer in resnet.layers:
-    layer.trainable = False
-# resnet.layers[-1].trainable = True
-# resnet.layers[-2].trainable = True
-# resnet.layers[-3].trainable = True
-# resnet.layers[-4].trainable = True
-# resnet.layers[-5].trainable = True
-# resnet.layers[-6].trainable = True
-# resnet.layers[-7].trainable = True
-
 model = keras.models.Sequential()
 model.add(resnet)
 model.add(keras.layers.GlobalAveragePooling2D())
@@ -107,8 +97,8 @@ X_test = np.array(X_test).reshape(-1, X_train_validate[0].shape[0], X_train_vali
 y_train_validate = np.array(y_train_validate)
 y_test = np.array(y_test)
 history = model.fit(X_train_validate, y_train_validate, epochs=2000,
-                    batch_size=8, validation_split=0.2, shuffle=True, callbacks=Callback)
-# class_weight=class_weight_dict)
+                    batch_size=8, validation_split=0.2, shuffle=True, callbacks=Callback,
+                    class_weight=class_weight_dict)
 pickle.dump(history.history, history_save)
 scores = model.evaluate(X_test, y_test, verbose=1, batch_size=8)
 print("%s: %.2f%%" % (model.metrics_names[1], scores[1] * 100))
