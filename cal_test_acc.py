@@ -1,15 +1,9 @@
-import pickle
 import pandas as pd
 import numpy as np
 import os
 import tensorflow.keras as keras
-from sklearn.model_selection import StratifiedKFold, train_test_split
-from sklearn.utils import class_weight
-from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard, EarlyStopping
-import matplotlib.pyplot as plt
-import tensorflow.keras.backend as K
+from sklearn.model_selection import train_test_split
 from tqdm import tqdm
-import scipy.misc
 import cv2
 
 SEED = 2021
@@ -52,26 +46,6 @@ for img in tqdm(imglist):
 X_train_validate, X_test, y_train_validate, y_test = train_test_split(Label[0], Label[1],
                                                                       stratify=Label[2],
                                                                       test_size=0.2, random_state=SEED)
-checkpointer = ModelCheckpoint(
-    filepath=os.path.join('./model/', 'checkpoints',
-                          'inception.{epoch:03d}-{val_loss:.2f}.hdf5'),
-    verbose=1, monitor='val_loss',
-    save_best_only=True)
-
-# Stop when we stop learning.
-early_stopper = EarlyStopping(monitor='val_loss', patience=50)
-
-# TensorBoard
-tensorboard = TensorBoard(log_dir=os.path.join('data', 'logs'), write_graph=True, write_grads=False, write_images=True,
-                          embeddings_freq=0, embeddings_layer_names=None, embeddings_metadata=None,
-                          embeddings_data=None, update_freq='epoch')
-
-Callback = [checkpointer, early_stopper, tensorboard]
-
-weights = class_weight.compute_class_weight('balanced', np.unique(np.array(train_data_tp["species_id"])),
-                                            np.array(train_data_tp["species_id"]))
-class_weight_dict = dict(enumerate(weights))
-
 resnet = keras.applications.EfficientNetB4(weights="imagenet", include_top=False, input_shape=(X_train_validate[0].shape[0],
                                                                                            X_train_validate[0].shape[1],
                                                                                            3), classes=24)
@@ -90,32 +64,12 @@ optimizer = keras.optimizers.Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e
                                   amsgrad=True, clipnorm=1.)
 model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=['accuracy'])
 model.summary()
-history_save = open('./data/result/Train_History_Dict.txt', 'wb')
+model.load_weights('./model/checkpoints/inception.065-0.13.hdf5')
 X_train_validate = np.array(X_train_validate).reshape(-1, X_train_validate[0].shape[0], X_train_validate[0].shape[1], 3)
 X_test = np.array(X_test).reshape(-1, X_train_validate[0].shape[0], X_train_validate[0].shape[1], 3)
 y_train_validate = np.array(y_train_validate)
 y_test = np.array(y_test)
-history = model.fit(X_train_validate, y_train_validate, epochs=2000,
-                    batch_size=8, validation_split=0.2, shuffle=True, callbacks=Callback,
-                    class_weight=class_weight_dict)
-pickle.dump(history.history, history_save)
 scores = model.evaluate(X_test, y_test, verbose=1, batch_size=8)
 print("%s: %.2f%%" % (model.metrics_names[1], scores[1] * 100))
-model.save('./model/model_final.hdf5')
-history_save.close()
-# summarize history for accuracy
-plt.plot(history.history['accuracy'])
-plt.plot(history.history['val_accuracy'])
-plt.title('model accuracy')
-plt.ylabel('accuracy')
-plt.xlabel('epoch')
-plt.legend(['train', 'validate'], loc='upper left')
-plt.show()
-# summarize history for loss
-plt.plot(history.history['loss'])
-plt.plot(history.history['val_loss'])
-plt.title('model loss')
-plt.ylabel('loss')
-plt.xlabel('epoch')
-plt.legend(['train', 'validate'], loc='upper right')
-plt.show()
+predict = model.predict(X_test, batch_size=8)
+print(predict)
