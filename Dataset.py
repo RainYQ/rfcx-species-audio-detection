@@ -74,7 +74,7 @@ if not os.path.exists('./VOC2007/ImageSets'):
 
 xml_location = "./VOC2007/Annotations/"
 # 制作VOC格式的label
-# warning: VOC格式中的种类从0开始
+# warning: VOC格式中的种类从1开始
 for i in range(len(Label[0])):
     node_root = Element('annotation')
     node_folder = SubElement(node_root, 'folder')
