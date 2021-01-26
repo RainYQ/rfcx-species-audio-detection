@@ -324,6 +324,6 @@ for i in range(len(Label[0])):
         center_x = ((np.array(Label[1][i]["t_max"])[j] + np.array(Label[1][i]["t_min"])[j]) / 2) / 387
         center_y = ((308 - np.array(Label[1][i]["f_max"])[j] - np.array(Label[1][i]["f_min"])[j]) / 2) / 154
         file.write(str(species_id) + " " + str(center_x) + " " + str(center_y) +
-                   " " + str(width) + " " + str(height))
+                   " " + str(width) + " " + str(height) + "\n")
     file.close()
 print("Darknet label txt files generate successfully!")

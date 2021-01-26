@@ -1,0 +1,33 @@
+<annotation>
+  <folder>VOC2007_test</folder>
+  <filename>a0af97b46_0.png</filename>
+  <source>
+    <database>Kaggle Rainforest Connection Species Audio Detection Database</database>
+  </source>
+  <size>
+    <width>387</width>
+    <height>154</height>
+    <depth>3</depth>
+  </size>
+  <segmented>0</segmented>
+  <object>
+    <name>8</name>
+    <difficult>0</difficult>
+    <bndbox>
+      <xmin>83.0</xmin>
+      <ymin>15.0</ymin>
+      <xmax>171.0</xmax>
+      <ymax>50.0</ymax>
+    </bndbox>
+  </object>
+  <object>
+    <name>8</name>
+    <difficult>0</difficult>
+    <bndbox>
+      <xmin>284.0</xmin>
+      <ymin>16.0</ymin>
+      <xmax>363.0</xmax>
+      <ymax>53.0</ymax>
+    </bndbox>
+  </object>
+</annotation>

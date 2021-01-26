@@ -1,23 +1,26 @@
 <annotation>
-  <folder>VOC2007</folder>
-  <filename>e23e84994_0.png</filename>
-  <source>
-    <database>Kaggle Rainforest Connection Species Audio Detection Database</database>
-  </source>
-  <size>
-    <width>387</width>
-    <height>154</height>
-    <depth>3</depth>
-  </size>
-  <segmented>0</segmented>
-  <object>
-    <name>20</name>
-    <difficult>0</difficult>
-    <bndbox>
-      <xmin>323.09581875000003</xmin>
-      <ymin>65.25397388787813</ymin>
-      <xmax>383.15821875</xmax>
-      <ymax>130.79816240629486</ymax>
-    </bndbox>
-  </object>
+	<folder>train_img</folder>
+	<filename>e23e84994_0.png</filename>
+	<path>D:\work\kaggle\rfcx-species-audio-detection\train_img\e23e84994_0.png</path>
+	<source>
+		<database>Unknown</database>
+	</source>
+	<size>
+		<width>387</width>
+		<height>154</height>
+		<depth>3</depth>
+	</size>
+	<segmented>0</segmented>
+	<object>
+		<name>20</name>
+		<pose>Unspecified</pose>
+		<truncated>0</truncated>
+		<difficult>0</difficult>
+		<bndbox>
+			<xmin>323</xmin>
+			<ymin>65</ymin>
+			<xmax>383</xmax>
+			<ymax>130</ymax>
+		</bndbox>
+	</object>
 </annotation>
