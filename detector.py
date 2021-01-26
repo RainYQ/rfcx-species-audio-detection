@@ -65,6 +65,7 @@ for sample in tqdm(test_audio_list):
         buffer_.seek(0)
         # 用PIL从内存中读取
         dataPIL = PIL.Image.open(buffer_)
+        data = np.asarray(dataPIL)
         data = cv2.cvtColor(np.asarray(dataPIL), cv2.COLOR_RGB2BGR)
         data = np.array(data).reshape([1, 154, 387, 3])
         # 释放缓存
