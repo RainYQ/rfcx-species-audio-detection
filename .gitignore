@@ -18,7 +18,7 @@ train/
 .idea/
 venv/
 temp/
-diff/
 output/
 data/
 model/
+diff/
