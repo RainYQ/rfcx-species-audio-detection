@@ -6,6 +6,7 @@ from lxml.etree import Element, SubElement, ElementTree
 import json
 import shutil
 from shutil import copyfile
+
 try:
     import xml.etree.cElementTree as xmlElementTree
 except ImportError:
@@ -66,14 +67,43 @@ def coco_writer(X_train, y_train, X_validate, y_validate, X_test, y_test, coco_p
     if len(os.listdir(coco_path + "/images/test2017/")):
         shutil.rmtree(coco_path + "/images/test2017/")
         os.mkdir(coco_path + "/images/test2017/")
+    coco_train_val_dataset = {'categories': [], 'images': [], 'annotations': []}
     for i in range(len(X_train)):
         copyfile(img_dataset + X_train[i], coco_path + '/images/train2017/' + X_train[i])
         coco_dataset['images'].append({'file_name': X_train[i],
                                        'id': imgcount,
                                        'width': 387,
                                        'height': 154})
+        coco_train_val_dataset['images'].append({'file_name': X_train[i],
+                                                 'id': imgcount,
+                                                 'width': 387,
+                                                 'height': 154})
         for j in range(y_train[i].shape[0]):
             coco_dataset['annotations'].append({
+                'area': (np.array(y_train[i]["t_max"])[j] - np.array(y_train[i]["t_min"])[j]) * (
+                        np.array(y_train[i]["f_max"])[j] - np.array(y_train[i]["f_min"])[j]),
+                # x1, y1为左上角顶点
+                # bbox: x1, y1, width, height
+                'bbox': [np.array(y_train[i]["t_min"])[j], 154 - np.array(y_train[i]["f_max"])[j],
+                         np.array(y_train[i]["t_max"])[j] - np.array(y_train[i]["t_min"])[j],
+                         np.array(y_train[i]["f_max"])[j] - np.array(y_train[i]["f_min"])[j]],
+                # 0默认为背景
+                'category_id': int(np.array(y_train[i]["species_id"])[j]) + 1,
+                # 为每个object编制唯一id
+                'id': bdboxcount,
+                'image_id': imgcount,
+                'iscrowd': 0,
+                # [x1, y1, x2, y1, x2, y2, x1, y2]
+                'segmentation': [[np.array(y_train[i]["t_min"])[j],
+                                  154 - np.array(y_train[i]["f_min"])[j],
+                                  np.array(y_train[i]["t_max"])[j],
+                                  154 - np.array(y_train[i]["f_min"])[j],
+                                  np.array(y_train[i]["t_max"])[j],
+                                  154 - np.array(y_train[i]["f_max"])[j],
+                                  np.array(y_train[i]["t_min"])[j],
+                                  154 - np.array(y_train[i]["f_max"])[j]]]
+            })
+            coco_train_val_dataset['annotations'].append({
                 'area': (np.array(y_train[i]["t_max"])[j] - np.array(y_train[i]["t_min"])[j]) * (
                         np.array(y_train[i]["f_max"])[j] - np.array(y_train[i]["f_min"])[j]),
                 # x1, y1为左上角顶点
@@ -108,7 +138,6 @@ def coco_writer(X_train, y_train, X_validate, y_validate, X_test, y_test, coco_p
     with open(filename, 'w') as file_obj:
         json.dump(coco_dataset, file_obj, indent=1)
     print("COCO instances_train2017.json generate successfully!")
-
     coco_dataset = {'categories': [], 'images': [], 'annotations': []}
     for i in range(len(X_validate)):
         copyfile(img_dataset + X_validate[i], coco_path + "/images/val2017/" + X_validate[i])
@@ -116,8 +145,36 @@ def coco_writer(X_train, y_train, X_validate, y_validate, X_test, y_test, coco_p
                                        'id': imgcount,
                                        'width': 387,
                                        'height': 154})
+        coco_train_val_dataset['images'].append({'file_name': X_validate[i],
+                                                 'id': imgcount,
+                                                 'width': 387,
+                                                 'height': 154})
         for j in range(y_validate[i].shape[0]):
             coco_dataset['annotations'].append({
+                'area': (np.array(y_validate[i]["t_max"])[j] - np.array(y_validate[i]["t_min"])[j]) * (
+                        np.array(y_validate[i]["f_max"])[j] - np.array(y_validate[i]["f_min"])[j]),
+                # x1, y1为左上角顶点
+                # bbox: x1, y1, width, height
+                'bbox': [np.array(y_validate[i]["t_min"])[j], 154 - np.array(y_validate[i]["f_max"])[j],
+                         np.array(y_validate[i]["t_max"])[j] - np.array(y_validate[i]["t_min"])[j],
+                         np.array(y_validate[i]["f_max"])[j] - np.array(y_validate[i]["f_min"])[j]],
+                # 0默认为背景
+                'category_id': int(np.array(y_validate[i]["species_id"])[j]) + 1,
+                # 为每个object编制唯一id
+                'id': bdboxcount,
+                'image_id': imgcount,
+                'iscrowd': 0,
+                # [x1, y1, x2, y1, x2, y2, x1, y2]
+                'segmentation': [[np.array(y_validate[i]["t_min"])[j],
+                                  154 - np.array(y_validate[i]["f_min"])[j],
+                                  np.array(y_validate[i]["t_max"])[j],
+                                  154 - np.array(y_validate[i]["f_min"])[j],
+                                  np.array(y_validate[i]["t_max"])[j],
+                                  154 - np.array(y_validate[i]["f_max"])[j],
+                                  np.array(y_validate[i]["t_min"])[j],
+                                  154 - np.array(y_validate[i]["f_max"])[j]]]
+            })
+            coco_train_val_dataset['annotations'].append({
                 'area': (np.array(y_validate[i]["t_max"])[j] - np.array(y_validate[i]["t_min"])[j]) * (
                         np.array(y_validate[i]["f_max"])[j] - np.array(y_validate[i]["f_min"])[j]),
                 # x1, y1为左上角顶点
@@ -151,6 +208,14 @@ def coco_writer(X_train, y_train, X_validate, y_validate, X_test, y_test, coco_p
     with open(filename, 'w') as file_obj:
         json.dump(coco_dataset, file_obj, indent=1)
     print("COCO instances_val2017.json generate successfully!")
+    for i in range(25):
+        coco_train_val_dataset['categories'].append({'id': i,
+                                                     'name': i,
+                                                     'supercategory': i})
+    filename = coco_path + "/annotations/instances_trainval2017.json"
+    with open(filename, 'w') as file_obj:
+        json.dump(coco_train_val_dataset, file_obj, indent=1)
+    print("COCO instances_trainval2017.json generate successfully!")
 
     coco_dataset = {'categories': [], 'images': [], 'annotations': []}
     for i in range(len(X_test)):
@@ -405,7 +470,6 @@ def darknet_writer(X_train, y_train, X_validate, y_validate, X_test, y_test, dar
 
 
 if __name__ == '__main__':
-
     # VOC reader sample
 
     Label_train = voc_reader("./VOC2007", "train")

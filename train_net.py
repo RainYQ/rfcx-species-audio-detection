@@ -48,14 +48,14 @@ CLASS_NAMES = ["0", "1", "2", "3", "4", "5", "6", "7", "8",
                "9", "10", "11", "12", "13", "14", "15", "16",
                "17", "18", "19", "20", "21", "22", "23", "24"]
 # 数据集路径
-DATASET_ROOT = './coco'
+DATASET_ROOT = './coco_test'
 ANN_ROOT = os.path.join(DATASET_ROOT, 'annotations')
 
-TRAIN_PATH = os.path.join(DATASET_ROOT, 'images', 'train2017')
-VAL_PATH = os.path.join(DATASET_ROOT, 'images', 'val2017')
+TRAIN_PATH = os.path.join(DATASET_ROOT, 'images', 'trainval2017')
+VAL_PATH = os.path.join(DATASET_ROOT, 'images', 'test2017')
 
-TRAIN_JSON = os.path.join(ANN_ROOT, 'instances_train2017.json')
-VAL_JSON = os.path.join(ANN_ROOT, 'instances_val2017.json')
+TRAIN_JSON = os.path.join(ANN_ROOT, 'instances_trainval2017.json')
+VAL_JSON = os.path.join(ANN_ROOT, 'instances_test2017.json')
 
 # 声明数据集的子集
 PREDEFINED_SPLITS_DATASET = {
@@ -220,7 +220,7 @@ def setup(args):
     # 指定最大迭代次数
     cfg.SOLVER.MAX_ITER = (ITERS_IN_ONE_EPOCH * 1000) - 1  # 1000 epochs，
     # 初始学习率
-    cfg.SOLVER.BASE_LR = 0.0015
+    cfg.SOLVER.BASE_LR = 0.0005
     # 优化器动能
     cfg.SOLVER.MOMENTUM = 0.9
     # 权重衰减
