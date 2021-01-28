@@ -136,7 +136,6 @@ def label_verify():
             plt.vlines(data[i][1], 154 - data[i][2], 154 - data[i][3], color_list[int(data[i][4])])
             # 区分TP or FP
             # plt.text(data[i][0], 154 - data[i][3] - 1.0, "TP", color="w")
-        plt.savefig("./label_test/" + img, bbox_inches="tight", pad_inches=0.0)
 
 
 # 传入的时间单位为s，频率单位为Hz
