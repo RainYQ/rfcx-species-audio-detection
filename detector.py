@@ -7,6 +7,7 @@ import tensorflow.keras as keras
 import PIL.Image as Image
 import cv2
 import csv
+
 try:
     from cStringIO import StringIO
 except ImportError:
@@ -40,7 +41,7 @@ def model():
 test_audio_path = "./test/"
 test_audio_list = os.listdir(test_audio_path)
 det_model = model()
-result_csv = open('result.csv','w',encoding='utf-8')
+result_csv = open('result.csv', 'w', encoding='utf-8')
 csv_writer = csv.writer(result_csv)
 csv_writer.writerow(["recording_id", "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10", "s11", "s12",
                      "s13", "s14", "s15", "s16", "s17", "s18", "s19", "s20", "s21", "s22", "s23"])
@@ -80,4 +81,3 @@ for sample in tqdm(test_audio_list):
         data_list.append(str(format(r[j], '.4f')))
     csv_writer.writerow(data_list)
 result_csv.close()
-
