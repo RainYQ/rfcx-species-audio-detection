@@ -1,9 +1,10 @@
-from IPython.display import Image
+# modified from
 import random
 import os
 import tensorflow as tf
 import tensorflow_addons as tfa
 # import tensorflow_probability as tfp
+import efficientnet.tfkeras as efn
 import numpy as np
 import matplotlib.pyplot as plt
 import librosa
@@ -19,6 +20,15 @@ from IPython.display import FileLink
 print(tf.__version__)
 
 SEED = 42
+
+train_tp = "./train_tp.csv"
+train_fp = "./train_fp.csv"
+train_data_tp = pd.read_csv(train_tp)
+train_data_fp = pd.read_csv(train_fp)
+
+gpus = tf.config.experimental.list_physical_devices('GPU')
+for gpu in gpus:
+    tf.config.experimental.set_memory_growth(gpu, True)
 
 
 def seed_everything(seed):
@@ -42,13 +52,13 @@ cfg = {
         'sample_time': 6,  # assert 60 % sample_time == 0
         'spec_fmax': 24000.0,
         'spec_fmin': 40.0,
-        'spec_mel': 224,
+        'spec_mel': 256,
         'mel_power': 2,
-        'img_shape': (224, 512)
+        'img_shape': (256, 512)
     },
     'model_params': {
-        'batchsize_per_tpu': 16,
-        'iteration_per_epoch': 64,
+        'batchsize_per_tpu': 4,
+        'iteration_per_epoch': 256,
         'epoch': 100,
         'arch': ResNet34,
         'arch_preprocess': preprocess_input,
@@ -59,24 +69,26 @@ cfg = {
         },
         'optim': {
             'fn': tfa.optimizers.RectifiedAdam,
-            'params': {'lr': 5e-4, 'total_steps': 100 * 64, 'warmup_proportion': 0.3, 'min_lr': 1e-6},
+            'params': {'lr': 5e-4, 'total_steps': 100 * 256, 'warmup_proportion': 0.3, 'min_lr': 1e-6},
         },
-        'mixup': True  # False
+        'mixup': True,  # False
+        'multi-label': True
     }
 }
 AUTOTUNE = tf.data.experimental.AUTOTUNE
 GCS_DS_PATH = './'
 TRAIN_TFREC = "./tfrecords/train"
 TEST_TFREC = "./tfrecords/test"
-CUT = cfg['parse_params']['cut_time']
+CUT = cfg['parse_params']['cut_time']  # CUT = 10
 SR = 48000  # all wave's sample rate may be 48k
-TIME = cfg['data_params']['sample_time']
+TIME = cfg['data_params']['sample_time']  # TIME = 6
 FMAX = cfg['data_params']['spec_fmax']
 FMIN = cfg['data_params']['spec_fmin']
 N_MEL = cfg['data_params']['spec_mel']
 HEIGHT, WIDTH = cfg['data_params']['img_shape']
 CLASS_N = 24
 raw_dataset = tf.data.TFRecordDataset([TRAIN_TFREC + '/00-148.tfrec'])
+# 定义Feature结构, 告诉解码器每个Feature的类型和默认值
 feature_description = {
     'recording_id': tf.io.FixedLenFeature([], tf.string, default_value=''),
     'audio_wav': tf.io.FixedLenFeature([], tf.string, default_value=''),
@@ -92,11 +104,12 @@ parse_dtype = {
     'f_min': tf.float32,
     't_max': tf.float32,
     'f_max': tf.float32,
-    'is_tp': tf.int32
+    'is_tp': tf.int32,
 }
 
 
 @tf.function
+# 将TFRecord文件中的每一个序列化的tf.train.Example解码
 def _parse_function(example_proto):
     sample = tf.io.parse_single_example(example_proto, feature_description)
     wav, _ = tf.audio.decode_wav(sample['audio_wav'], desired_channels=1)  # mono
@@ -119,6 +132,13 @@ def _parse_function(example_proto):
         cut_s = tf.cast(CUT * SR, tf.float32)
         all_s = tf.cast(60 * SR, tf.float32)
         tsize_s = tmax_s - tmin_s
+        # cut_s 10s
+        # [tmin_s - (cut_s - tsize_s) / 2, tmax_s + (cut_s - tsize_s) / 2]
+        # center crop
+        # 右端点不能超出边界 tf.minimum(tmax_s + (cut_s - tsize_s) / 2, all_s)
+        # 必须保证可以cut到10s tf.minimum(tmin_s - (cut_s - tsize_s) / 2, tf.minimum(tmax_s + (cut_s - tsize_s) / 2, all_s) - cut_s)
+        # 在保证中心裁切可以cut到10s的情况下使用center crop, 两边各扩展(cut_s - tsize_s) / 2
+        # [cut_min, cut_max]
         cut_min = tf.cast(
             tf.maximum(0.0,
                        tf.minimum(tmin_s - (cut_s - tsize_s) / 2,
@@ -126,7 +146,6 @@ def _parse_function(example_proto):
                        ), tf.int32
         )
         cut_max = cut_min + CUT * SR
-
         _sample = {
             'audio_wav': tf.reshape(wav[cut_min:cut_max], [CUT * SR]),
             'recording_id': sample['recording_id'],
@@ -136,10 +155,9 @@ def _parse_function(example_proto):
             'f_min': fmin,
             't_max': tmax - tf.cast(cut_min, tf.float32) / tf.cast(SR, tf.float32),
             'f_max': fmax,
-            'is_tp': tp
+            'is_tp': tp,
         }
         return _sample
-
     samples = tf.map_fn(_cut_audio, labels, dtype=parse_dtype)
     return samples
 
@@ -150,10 +168,15 @@ parsed_dataset = raw_dataset.map(_parse_function).unbatch()
 @tf.function
 def _cut_wav(x):
     # random cut in training
+    # 在训练阶段随机裁剪到6s
+    # CUT: 10s TIME: 6s
+    # delta: 4s
+    # 找一个0-4s的随机数
     cut_min = tf.random.uniform([], maxval=(CUT - TIME) * SR, dtype=tf.int32)
     cut_max = cut_min + TIME * SR
     cutwave = tf.reshape(x['audio_wav'][cut_min:cut_max], [TIME * SR])
     y = {}
+    # 更新x中的audio_wav
     y.update(x)
     y['audio_wav'] = cutwave
     y['t_min'] = tf.maximum(0.0, x['t_min'] - tf.cast(cut_min, tf.float32) / SR)
@@ -163,6 +186,7 @@ def _cut_wav(x):
 
 @tf.function
 def _cut_wav_val(x):
+    # 验证集永远是中心裁切
     # center crop in validation
     cut_min = (CUT - TIME) * SR // 2
     cut_max = cut_min + TIME * SR
@@ -180,6 +204,11 @@ def _filtTP(x):
     return x['is_tp'] == 1
 
 
+@tf.function
+def _filtFP(x):
+    return x['is_tp'] == 0
+
+
 def show_wav(sample, ax):
     wav = sample["audio_wav"].numpy()
     rate = SR
@@ -192,8 +221,8 @@ def show_wav(sample, ax):
     return Audio((wav * 2 ** 15).astype(np.int16), rate=rate)
 
 
-fig, ax = plt.subplots(figsize=(15, 3))
-show_wav(next(iter(parsed_dataset)), ax)
+# fig, ax = plt.subplots(figsize=(15, 3))
+# show_wav(next(iter(parsed_dataset)), ax)
 
 
 @tf.function
@@ -227,11 +256,12 @@ def _wav_to_spec(x):
 
 spec_dataset = parsed_dataset.filter(_filtTP).map(_cut_wav).map(_wav_to_spec)
 
-plt.figure(figsize=(12, 5))
-for i, s in enumerate(spec_dataset.take(3)):
-    plt.subplot(1, 3, i + 1)
-    plt.imshow(s['audio_spec'])
-plt.show()
+
+# plt.figure(figsize=(12, 5))
+# for i, s in enumerate(spec_dataset.take(3)):
+#     plt.subplot(1, 3, i + 1)
+#     plt.imshow(s['audio_spec'])
+# plt.show()
 
 
 def show_spectrogram(sample, ax, showlabel=False):
@@ -253,20 +283,21 @@ def show_spectrogram(sample, ax, showlabel=False):
                 horizontalalignment='left', verticalalignment='bottom', color=ec, fontsize=16)
 
 
-fig, ax = plt.subplots(figsize=(15, 3))
-show_spectrogram(next(iter(spec_dataset)), ax, showlabel=True)
+# fig, ax = plt.subplots(figsize=(15, 3))
+# show_spectrogram(next(iter(spec_dataset)), ax, showlabel=True)
 
 # in validation, annotations will come to the center
-fig, ax = plt.subplots(figsize=(15, 3))
-show_spectrogram(next(iter(parsed_dataset.filter(_filtTP).map(_cut_wav_val).map(_wav_to_spec))), ax, showlabel=True)
+# fig, ax = plt.subplots(figsize=(15, 3))
+# show_spectrogram(next(iter(parsed_dataset.filter(_filtTP).map(_cut_wav_val).map(_wav_to_spec))), ax, showlabel=True)
 
-for sample in spec_dataset.take(5):
-    fig, ax = plt.subplots(figsize=(15, 3))
-    show_spectrogram(sample, ax, showlabel=True)
+# for sample in spec_dataset.take(5):
+#     fig, ax = plt.subplots(figsize=(15, 3))
+#     show_spectrogram(sample, ax, showlabel=True)
 
 
 # create labels
-
+# RainYQ
+# support multi-label
 @tf.function
 def _create_annot(x):
     targ = tf.one_hot(x["species_id"], CLASS_N, on_value=x["is_tp"], off_value=0)
@@ -305,6 +336,24 @@ def _preprocess_img(x, training=False, test=False):
         xsize = tf.random.uniform([2], minval=ERASE_TIME // 2, maxval=ERASE_TIME, dtype=tf.int32)
         yoff = tf.random.uniform([2], minval=ERASE_MEL // 2, maxval=HEIGHT - ERASE_MEL // 2, dtype=tf.int32)
         ysize = tf.random.uniform([2], minval=ERASE_MEL // 2, maxval=ERASE_MEL, dtype=tf.int32)
+        if xsize[0] % 2 != 0:
+            a = tf.add(xsize[0], 1)
+        else:
+            a = xsize[0]
+        if xsize[1] % 2 != 0:
+            b = tf.add(xsize[1], 1)
+        else:
+            b = xsize[1]
+        if ysize[0] % 2 != 0:
+            c = tf.add(ysize[0], 1)
+        else:
+            c = ysize[0]
+        if ysize[1] % 2 != 0:
+            d = tf.add(ysize[1], 1)
+        else:
+            d = ysize[1]
+        xsize = tf.stack([a, b])
+        ysize = tf.stack([c, d])
         image = tfa.image.cutout(image, [HEIGHT, xsize[0]], offset=[HEIGHT // 2, xoff[0]])
         image = tfa.image.cutout(image, [HEIGHT, xsize[1]], offset=[HEIGHT // 2, xoff[1]])
         image = tfa.image.cutout(image, [ysize[0], WIDTH], offset=[yoff[0], WIDTH // 2])
@@ -369,7 +418,9 @@ for inp, targ in annot_dataset.map(_preprocess).take(2):
 
 def create_model():
     # backbone = cfg['model_params']['arch'](include_top=False, weights='imagenet')
-    backbone = cfg['model_params']['arch']((HEIGHT, WIDTH, 3), include_top=False, weights='imagenet')
+    # backbone = cfg['model_params']['arch']((HEIGHT, WIDTH, 3), include_top=False, weights='imagenet')
+    backbone = tf.keras.applications.EfficientNetB2(weights="imagenet", include_top=False,
+                                                    input_shape=(HEIGHT, WIDTH, 3), classes=24)
 
     if cfg['model_params']['freeze_to'] is None:
         for layer in backbone.layers:
@@ -593,7 +644,7 @@ def inference(model):
 
     sub = pd.DataFrame({
         'recording_id': list(map(lambda x: x.decode(), crec_ids.tolist())),
-        **{f's{i}': cprobs[:, i] for i in range(CLASS_N)}
+        **{f's{i}': cprobs[:, i] / 5 for i in range(CLASS_N)}
     })
     sub = sub.sort_values('recording_id')
     return sub
@@ -623,23 +674,24 @@ def train_and_inference(splits, split_id):
     optimizer = cfg['model_params']['optim']['fn'](**cfg['model_params']['optim']['params'])
     model = create_model()
     model.compile(optimizer=optimizer, loss=loss_fn, metrics=[LWLRAP(CLASS_N)])
-    # idx_train_tf = tf.cast(tf.constant(splits[split_id][0]), tf.int64)
-    # idx_val_tf = tf.cast(tf.constant(splits[split_id][1]), tf.int64)
-    # dataset = create_train_dataset(batchsize, idx_train_tf)
-    # vdataset = create_val_dataset(batchsize, idx_val_tf)
-    # history = model.fit(dataset,
-    #                     steps_per_epoch=cfg['model_params']['iteration_per_epoch'],
-    #                     epochs=cfg['model_params']['epoch'],
-    #                     validation_data=vdataset,
-    #                     callbacks=[
-    #                         tf.keras.callbacks.ModelCheckpoint(
-    #                             filepath='./model/model_best_%d.h5' % split_id,
-    #                             save_weights_only=True,
-    #                             monitor='val_lwlrap',
-    #                             mode='max',
-    #                             save_best_only=True),
-    #                     ])
-    # plot_history(history, 'history_%d.png' % split_id)
+    idx_train_tf = tf.cast(tf.constant(splits[split_id][0]), tf.int64)
+    idx_val_tf = tf.cast(tf.constant(splits[split_id][1]), tf.int64)
+    dataset = create_train_dataset(batchsize, idx_train_tf)
+    vdataset = create_val_dataset(batchsize, idx_val_tf)
+    history = model.fit(dataset,
+                        batch_size=cfg['model_params']['batchsize_per_tpu'],
+                        steps_per_epoch=cfg['model_params']['iteration_per_epoch'],
+                        epochs=cfg['model_params']['epoch'],
+                        validation_data=vdataset,
+                        callbacks=[
+                            tf.keras.callbacks.ModelCheckpoint(
+                                filepath='./model/model_best_%d.h5' % split_id,
+                                save_weights_only=True,
+                                monitor='val_lwlrap',
+                                mode='max',
+                                save_best_only=True),
+                        ])
+    plot_history(history, 'history_%d.png' % split_id)
     # inference
     model.load_weights('./model/model_best_%d.h5' % split_id)
     return inference(model)
