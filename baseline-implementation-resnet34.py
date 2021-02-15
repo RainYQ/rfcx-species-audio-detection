@@ -3,7 +3,7 @@ import random
 import os
 import tensorflow as tf
 import tensorflow_addons as tfa
-# import tensorflow_probability as tfp
+import tensorflow_probability as tfp
 import efficientnet.tfkeras as efn
 import numpy as np
 import matplotlib.pyplot as plt
@@ -16,6 +16,8 @@ from classification_models.keras import Classifiers
 import librosa.display
 import matplotlib.patches as patches
 from IPython.display import FileLink
+from GroupNormalization import GroupNormalization
+import keras.applications as kapplications
 
 print(tf.__version__)
 
@@ -46,30 +48,33 @@ ResNet34, preprocess_input = Classifiers.get('resnet34')
 
 cfg = {
     'parse_params': {
-        'cut_time': 10,
+        'cut_time': 12,
     },
     'data_params': {
-        'sample_time': 6,  # assert 60 % sample_time == 0
+        'sample_time': 10,  # assert 60 % sample_time == 0
         'spec_fmax': 24000.0,
         'spec_fmin': 40.0,
         'spec_mel': 256,
         'mel_power': 2,
-        'img_shape': (256, 512)
+        'img_shape': (256, 768)
     },
     'model_params': {
-        'batchsize_per_tpu': 4,
+        'batchsize_per_tpu': 8,
         'iteration_per_epoch': 256,
-        'epoch': 100,
+        'epoch': 150,
         'arch': ResNet34,
         'arch_preprocess': preprocess_input,
         'freeze_to': 0,  # Freeze to backbone.layers[:freeze_to]. If None, all layers in the backbone will be freezed.
         'loss': {
+            # using Label Smooth
+            'label_smooth': True,
+            'eps': 0.05,
             'fn': tfa.losses.SigmoidFocalCrossEntropy,
             'params': {},
         },
         'optim': {
             'fn': tfa.optimizers.RectifiedAdam,
-            'params': {'lr': 5e-4, 'total_steps': 100 * 256, 'warmup_proportion': 0.3, 'min_lr': 1e-6},
+            'params': {'lr': 1e-4, 'total_steps': 150 * 256, 'warmup_proportion': 0.3, 'min_lr': 1e-7},
         },
         'mixup': True,  # False
         'multi-label': True
@@ -158,6 +163,7 @@ def _parse_function(example_proto):
             'is_tp': tp,
         }
         return _sample
+
     samples = tf.map_fn(_cut_audio, labels, dtype=parse_dtype)
     return samples
 
@@ -299,8 +305,13 @@ def show_spectrogram(sample, ax, showlabel=False):
 # RainYQ
 # support multi-label
 @tf.function
-def _create_annot(x):
+def _create_annot(x, training=False):
     targ = tf.one_hot(x["species_id"], CLASS_N, on_value=x["is_tp"], off_value=0)
+    if training:
+        if cfg['model_params']['loss']['label_smooth']:
+            eps = cfg['model_params']['loss']['eps']
+            targ = tf.cast(targ, tf.float32)
+            targ = targ * (1 - eps) + eps / CLASS_N
 
     return {
         'input': x["audio_spec"],
@@ -308,7 +319,17 @@ def _create_annot(x):
     }
 
 
-annot_dataset = spec_dataset.map(_create_annot)
+@tf.function
+def _create_annot_train(x):
+    return _create_annot(x, training=True)
+
+
+@tf.function
+def _create_annot_val(x):
+    return _create_annot(x, training=False)
+
+
+# annot_dataset = spec_dataset.map(_create_annot)
 
 
 # Preprocessing and data augmentation
@@ -403,15 +424,15 @@ def _preprocess_test(x):
     return (image, x["recording_id"])
 
 
-for inp, targ in annot_dataset.map(_preprocess).take(2):
-    plt.imshow(inp.numpy()[:, :, 0])
-    t = targ.numpy()
-    if t.sum() == 0:
-        plt.title(f'FP')
-    else:
-        plt.title(f'{t.nonzero()[0]}')
-    plt.colorbar()
-    plt.show()
+# for inp, targ in annot_dataset.map(_preprocess).take(2):
+#     plt.imshow(inp.numpy()[:, :, 0])
+#     t = targ.numpy()
+#     if t.sum() == 0:
+#         plt.title(f'FP')
+#     else:
+#         plt.title(f'{t.nonzero()[0]}')
+#     plt.colorbar()
+#     plt.show()
 
 
 # Model
@@ -419,9 +440,11 @@ for inp, targ in annot_dataset.map(_preprocess).take(2):
 def create_model():
     # backbone = cfg['model_params']['arch'](include_top=False, weights='imagenet')
     # backbone = cfg['model_params']['arch']((HEIGHT, WIDTH, 3), include_top=False, weights='imagenet')
-    backbone = tf.keras.applications.EfficientNetB2(weights="imagenet", include_top=False,
-                                                    input_shape=(HEIGHT, WIDTH, 3), classes=24)
-
+    # using NASNet
+    backbone = tf.keras.applications.ResNet50V2(weights="imagenet", include_top=False,
+                                                input_shape=(HEIGHT, WIDTH, 3), classes=24)
+    # backbone = efn.EfficientNetB0(weights="imagenet", include_top=False,
+    #                               input_shape=(HEIGHT, WIDTH, 3), classes=24)
     if cfg['model_params']['freeze_to'] is None:
         for layer in backbone.layers:
             layer.trainable = False
@@ -432,17 +455,22 @@ def create_model():
     model = tf.keras.Sequential([
         backbone,
         tf.keras.layers.GlobalAveragePooling2D(),
-        tf.keras.layers.BatchNormalization(),
-        tf.keras.layers.Dropout(0.4),
+        GroupNormalization(group=32),
+        tf.keras.layers.Dropout(0.5),
         tf.keras.layers.Dense(1024, activation='relu', kernel_initializer=tf.keras.initializers.he_normal()),
-        tf.keras.layers.BatchNormalization(),
-        tf.keras.layers.Dropout(0.4),
+        GroupNormalization(group=32),
+        tf.keras.layers.Dropout(0.5),
         tf.keras.layers.Dense(CLASS_N, bias_initializer=tf.keras.initializers.Constant(-2.))])
     return model
 
 
 model = create_model()
 model.summary()
+
+tf.keras.utils.plot_model(model,
+                          to_file='model.png',  # 模型结构图保存名字
+                          show_layer_names=True,  # 是否显示层名
+                          show_shapes=True)  # 是否显示层形状
 
 
 @tf.function
@@ -483,8 +511,10 @@ table = pd.DataFrame({'indices': indices, 'species_id': spid, 'recording_id': re
 
 skf = StratifiedKFold(n_splits=5, random_state=SEED, shuffle=True)
 splits = list(skf.split(table.index, table.species_id))
-plt.hist([table.loc[splits[0][0], 'species_id'], table.loc[splits[0][1], 'species_id']], bins=CLASS_N, stacked=True)
-plt.show()
+
+
+# plt.hist([table.loc[splits[0][0], 'species_id'], table.loc[splits[0][1], 'species_id']], bins=CLASS_N, stacked=True)
+# plt.show()
 
 
 def create_idx_filter(indice):
@@ -511,7 +541,7 @@ def create_train_dataset(batchsize, train_idx):
                .repeat()
                .map(_cut_wav, num_parallel_calls=AUTOTUNE)
                .map(_wav_to_spec, num_parallel_calls=AUTOTUNE)
-               .map(_create_annot, num_parallel_calls=AUTOTUNE)
+               .map(_create_annot_train, num_parallel_calls=AUTOTUNE)
                .map(_preprocess, num_parallel_calls=AUTOTUNE)
                .batch(batchsize))
 
@@ -532,7 +562,7 @@ def create_val_dataset(batchsize, val_idx):
     vdataset = (parsed_val
                 .map(_cut_wav_val, num_parallel_calls=AUTOTUNE)
                 .map(_wav_to_spec, num_parallel_calls=AUTOTUNE)
-                .map(_create_annot, num_parallel_calls=AUTOTUNE)
+                .map(_create_annot_val, num_parallel_calls=AUTOTUNE)
                 .map(_preprocess_val, num_parallel_calls=AUTOTUNE)
                 .batch(batchsize)
                 .cache())
@@ -625,7 +655,7 @@ def inference(model):
                 .map(_parse_function_test, num_parallel_calls=AUTOTUNE).unbatch()
                 .map(_wav_to_spec, num_parallel_calls=AUTOTUNE)
                 .map(_preprocess_test, num_parallel_calls=AUTOTUNE)
-                .batch(8 * (60 // TIME)).prefetch(AUTOTUNE))
+                .batch(1 * (60 // TIME)).prefetch(AUTOTUNE))
 
     rec_ids = []
     probs = []

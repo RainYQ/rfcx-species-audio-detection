@@ -7,3 +7,6 @@
 [submodule "Yolo_mark"]
 	path = Yolo_mark
 	url = https://github.com/AlexeyAB/Yolo_mark.git
+[submodule "imgclsmob"]
+	path = imgclsmob
+	url = https://github.com/osmr/imgclsmob.git
